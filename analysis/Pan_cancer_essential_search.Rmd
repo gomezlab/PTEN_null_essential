@@ -1,0 +1,291 @@
+---
+title: "Pan Cancer Essential Search"
+author: "Matthew Berginski"
+output: github_markdown
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(here)
+library(furrr)
+library(tictoc)
+library(readxl)
+library(janitor)
+library(broom)
+```
+
+# Load METABRIC
+
+```{r}
+impact_CNA = read_delim(here('raw_data/msk_impact_2017/data_CNA.txt.gz'), delim="\t") %>% 
+  gather('case_id','CNA',-Hugo_Symbol)
+```
+
+
+```{r}
+impact_mut = read_delim(here('raw_data/msk_impact_2017/data_mutations_extended.txt.gz'),
+                          delim = "\t",
+                        comment = "#") %>%
+  filter(Variant_Classification == "Nonsense_Mutation") %>%
+  rename(case_id = Tumor_Sample_Barcode) %>%
+  mutate(Nonsense_mutation = TRUE)
+```
+
+```{r}
+impact_data = impact_CNA %>%
+  left_join(impact_mut %>% select(case_id,Nonsense_mutation,Hugo_Symbol)) %>%
+  mutate(CNA_no_missing = ifelse(is.na(CNA), 0, CNA)) %>%
+  mutate(Nonsense_mutation = ifelse(is.na(Nonsense_mutation), FALSE, TRUE))
+```
+
+
+# Determine Essential Gene Pairs
+
+```{r gene deletion rates}
+gene_alteration_rates = impact_data %>%
+  group_by(Hugo_Symbol) %>%
+  summarise(del_mut_rate = sum(CNA_no_missing == -2 | Nonsense_mutation)/length(CNA))
+```
+
+```{r}
+plan(sequential)
+tic()
+nothingness <- future_map(c(2, 2, 2), ~Sys.sleep(.x))
+toc()
+
+plan(multiprocess)
+tic()
+nothingness <- future_map(c(2, 2, 2), ~Sys.sleep(.x))
+toc()
+```
+
+```{r}
+find_overlap_count = function(gene_1, gene_2, alteration_data) {
+  overlap_cases = alteration_data %>%
+    filter(Hugo_Symbol == gene_1 | Hugo_Symbol == gene_2) %>%
+    group_by(case_id) %>%
+    summarise(count = n()) %>%
+    filter(count == 2)
+  
+  return(dim(overlap_cases)[1])
+}
+
+run_binom_test <- function(observed_overlap, total_samples, probability_of_overlap) {
+  library(broom)
+  #dealing with binom.test blowing up when probability is either zero or one
+  if (probability_of_overlap > 0 & probability_of_overlap < 1) {
+    return(tidy(binom.test(observed_overlap,total_samples,probability_of_overlap))$p.value)
+  } else {
+    return(NA)
+  }
+}
+```
+
+```{r}
+total_samples = length(unique(impact_data$case_id))
+impact_data_altered = impact_data %>%
+  filter(CNA == -2 | Nonsense_mutation | mRNA_z_no_missing <= -2)
+
+plan(multisession, workers = availableCores() - 2)
+
+tic();
+possible_essential_pairs = gene_alteration_rates %>% 
+  filter(del_mut_rate >= 0.15) %>%
+  
+  #produce a list of all the gene permutations
+  expand(Hugo_Symbol,Hugo_Symbol) %>% 
+  
+  #remove the duplicated permutation sets
+  filter(Hugo_Symbol < Hugo_Symbol1) %>%
+  rename(gene_1 = Hugo_Symbol, gene_2 = Hugo_Symbol1) %>%
+  
+  #this isn't strictly needed, but since PTEN is focus of the analysis, this
+  #swaps the location of PTEN to gene_1 when PTEN is in the gene_2 slot and
+  #makes looking at the downstream PTEN data easier
+  mutate(gene_1_PTEN = ifelse(gene_2 == "PTEN", "PTEN", gene_1), 
+         gene_2_PTEN = ifelse(gene_2 == "PTEN", gene_1, gene_2)) %>%
+  mutate(gene_1 = gene_1_PTEN, gene_2 = gene_2_PTEN) %>%
+  select(-gene_1_PTEN, - gene_2_PTEN) %>%
+   
+  #determine the number of cases where alterations overlap
+  mutate(overlap_count = future_map2_int(gene_1,gene_2,
+                                         find_overlap_count,
+                                         alteration_data = impact_data_altered, 
+                                         .progress=T)) %>%
+   
+  #merge back in the alteration rates for both gene_1 and gene_2
+  left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
+  left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
+
+  #calculate the expected number of overlaps from the base rates
+  mutate(expected_overlap_count = gene_1_mut_rate * gene_2_mut_rate * total_samples) %>%
+  mutate(overlap_diff = overlap_count - expected_overlap_count) %>%
+  mutate(overlap_p_value = future_pmap_dbl(list(overlap_count,total_samples,gene_1_mut_rate*gene_2_mut_rate),
+                                           run_binom_test,
+                                           .progress = T)) %>%
+  mutate(overlap_p_value_adjust = p.adjust(overlap_p_value, method = "fdr")) %>%
+  write_rds(here('results/all_pairs_15.rds')) %>%
+  identity()
+toc();
+
+apparent_gene_essential_pairs = possible_essential_pairs %>%
+  filter(overlap_diff < 0, overlap_p_value_adjust <= 0.05) %>%
+  write_rds(here('results/essential_pairs_15.rds'))
+
+apparent_gene_essential_pairs_PTEN = apparent_gene_essential_pairs %>%
+  filter(gene_1 == "PTEN" | gene_2 == "PTEN") %>%
+  write_rds(here('results/PTEN_essential_pairs_15.rds'))
+```
+
+```{r}
+plan(multisession, workers = availableCores() - 2)
+
+tic();
+possible_essential_pairs = gene_alteration_rates %>% 
+  filter(del_mut_rate >= 0.1) %>%
+  
+  #produce a list of all the gene permutations
+  expand(Hugo_Symbol,Hugo_Symbol) %>% 
+  
+  #remove the duplicated permutation sets
+  filter(Hugo_Symbol < Hugo_Symbol1) %>%
+  rename(gene_1 = Hugo_Symbol, gene_2 = Hugo_Symbol1) %>%
+  
+  #this isn't strictly needed, but since PTEN is focus of the analysis, this
+  #swaps the location of PTEN to gene_1 when PTEN is in the gene_2 slot and
+  #makes looking at the downstream PTEN data easier
+  mutate(gene_1_PTEN = ifelse(gene_2 == "PTEN", "PTEN", gene_1), 
+         gene_2_PTEN = ifelse(gene_2 == "PTEN", gene_1, gene_2)) %>%
+  mutate(gene_1 = gene_1_PTEN, gene_2 = gene_2_PTEN) %>%
+  select(-gene_1_PTEN, - gene_2_PTEN) %>%
+   
+  #determine the number of cases where alterations overlap
+  mutate(overlap_count = future_map2_int(gene_1,gene_2,
+                                         find_overlap_count,
+                                         alteration_data = impact_data_altered, 
+                                         .progress=T)) %>%
+   
+  #merge back in the alteration rates for both gene_1 and gene_2
+  left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
+  left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
+
+  #calculate the expected number of overlaps from the base rates
+  mutate(expected_overlap_count = gene_1_mut_rate * gene_2_mut_rate * total_samples) %>%
+  mutate(overlap_diff = overlap_count - expected_overlap_count) %>%
+  mutate(overlap_p_value = future_pmap_dbl(list(overlap_count,total_samples,gene_1_mut_rate*gene_2_mut_rate),
+                                           run_binom_test,
+                                           .progress = T)) %>%
+  mutate(overlap_p_value_adjust = p.adjust(overlap_p_value, method = "fdr")) %>%
+  write_rds(here('results/all_pairs_10.rds')) %>%
+  identity()
+toc();
+
+apparent_gene_essential_pairs = possible_essential_pairs %>%
+  filter(overlap_diff < 0, overlap_p_value <= 0.05) %>%
+  write_rds(here('results/essential_pairs_10.rds'))
+
+apparent_gene_essential_pairs_PTEN = apparent_gene_essential_pairs %>%
+  filter(gene_1 == "PTEN" | gene_2 == "PTEN") %>%
+  write_rds(here('results/PTEN_essential_pairs_10.rds'))
+```
+
+```{r}
+plan(multisession, workers = availableCores() - 2)
+
+tic();
+possible_essential_pairs = gene_alteration_rates %>% 
+  filter(del_mut_rate >= 0.05) %>%
+  
+  #produce a list of all the gene permutations
+  expand(Hugo_Symbol,Hugo_Symbol) %>% 
+  
+  #remove the duplicated permutation sets
+  filter(Hugo_Symbol < Hugo_Symbol1) %>%
+  rename(gene_1 = Hugo_Symbol, gene_2 = Hugo_Symbol1) %>%
+  
+  #this isn't strictly needed, but since PTEN is focus of the analysis, this
+  #swaps the location of PTEN to gene_1 when PTEN is in the gene_2 slot and
+  #makes looking at the downstream PTEN data easier
+  mutate(gene_1_PTEN = ifelse(gene_2 == "PTEN", "PTEN", gene_1), 
+         gene_2_PTEN = ifelse(gene_2 == "PTEN", gene_1, gene_2)) %>%
+  mutate(gene_1 = gene_1_PTEN, gene_2 = gene_2_PTEN) %>%
+  select(-gene_1_PTEN, - gene_2_PTEN) %>%
+   
+  #determine the number of cases where alterations overlap
+  mutate(overlap_count = future_map2_int(gene_1,gene_2,
+                                         find_overlap_count,
+                                         alteration_data = impact_data_altered, 
+                                         .progress=T)) %>%
+   
+  #merge back in the alteration rates for both gene_1 and gene_2
+  left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
+  left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
+
+  #calculate the expected number of overlaps from the base rates
+  mutate(expected_overlap_count = gene_1_mut_rate * gene_2_mut_rate * total_samples) %>%
+  mutate(overlap_diff = overlap_count - expected_overlap_count) %>%
+  mutate(overlap_p_value = future_pmap_dbl(list(overlap_count,total_samples,gene_1_mut_rate*gene_2_mut_rate),
+                                           run_binom_test,
+                                           .progress = T)) %>%
+  mutate(overlap_p_value_adjust = p.adjust(overlap_p_value, method = "fdr")) %>%
+  write_rds(here('results/all_pairs_05.rds')) %>%
+  identity()
+toc();
+
+apparent_gene_essential_pairs = possible_essential_pairs %>%
+  filter(overlap_diff < 0, overlap_p_value_adjust <= 0.05) %>%
+  write_rds(here('results/essential_pairs_05.rds'))
+
+apparent_gene_essential_pairs_PTEN = apparent_gene_essential_pairs %>%
+  filter(gene_1 == "PTEN" | gene_2 == "PTEN") %>%
+  write_rds(here('results/PTEN_essential_pairs_05.rds'))
+```
+
+```{r}
+total_samples = length(unique(impact_data$case_id))
+impact_data_altered = impact_data %>%
+  filter(CNA == -2 | Nonsense_mutation)
+
+high_alteration = gene_alteration_rates %>%
+  filter(del_mut_rate >= 0.005)
+
+plan(multisession, workers = availableCores() - 2)
+
+tic();
+possible_essential_pairs = 
+  data.frame(gene_1 = "PTEN", 
+             gene_2 = unique(high_alteration$Hugo_Symbol),
+             stringsAsFactors = F) %>%
+  filter(gene_1 != gene_2) %>%
+
+  #determine the number of cases where alterations overlap
+  mutate(overlap_count = future_map2_int(gene_1,gene_2,
+                                         find_overlap_count,
+                                         alteration_data = impact_data_altered,
+                                         .progress=T)) %>%
+
+  #merge back in the alteration rates for both gene_1 and gene_2
+  left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
+  left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
+
+  #calculate the expected number of overlaps from the base rates
+  mutate(expected_overlap_count = gene_1_mut_rate * gene_2_mut_rate * total_samples) %>%
+  mutate(overlap_diff = overlap_count - expected_overlap_count) %>%
+  mutate(overlap_p_value = future_pmap_dbl(list(overlap_count,total_samples,gene_1_mut_rate*gene_2_mut_rate),
+                                           run_binom_test,
+                                           .progress = T)) %>%
+  mutate(overlap_p_value_adjust = p.adjust(overlap_p_value, method = "fdr")) %>%
+  mutate_if(is.numeric, ~ signif(., digits = 3)) %>%
+  write_rds(here('results/all_PTEN_pairs_impact.rds')) %>%
+  identity()
+toc();
+
+apparent_gene_essential_pairs = possible_essential_pairs %>%
+  filter(overlap_diff < 0, overlap_p_value <= 0.5) %>%
+  arrange(overlap_p_value) %>%
+  write_rds(here('results/all_PTEN_essential_pairs_impact.rds'))
+
+# apparent_gene_essential_pairs %>%
+#   slice(1:100) %>%
+#   write_csv(here('results/top_100_PTEN_essential.csv'))
+```
