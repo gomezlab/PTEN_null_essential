@@ -204,257 +204,112 @@ expression_CRISPR_KO %>%
 
 OK, this looks pretty good, of the 5% of genes that are in the required group, only ~2% of the required genes are in the low expression category. Now let's go hunt through the deletion essential set to verify/not find evidence for these interactions.
 
-## Deletion Essential Search
+## PTEN Essential Search
 
-```{r gene split testing function}
-test_split_gene_KO_changes = function(full_expression_KO, split_gene = "PTEN", KO_test_gene = "NDNL2") {
-  expression_filtered = full_expression_KO %>%
-    filter(hgnc_symbol %in% c(split_gene,KO_test_gene))
-  
-  low_expression_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, expression_level == "low")
-  high_expression_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, expression_level == "high")
-  
-  gene_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "yes")
+```{r}
+#split the cell lines into expressing/not expressing PTEN
+RPPA_PTEN = RPPA %>% 
+  filter(hgnc_symbol == "PTEN") %>%
+  mutate(PTEN_level = ifelse(RPPA <= -2, "low", "high"))
 
-  gene_not_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "no")
+expression_CRISPR_KO_PTEN_split = expression_CRISPR_KO %>% 
+  left_join(RPPA_PTEN %>% select('cell_line_id','PTEN_level')) %>%
+  filter(!is.na(PTEN_level))
 
-  total_lines = length(unique(expression_filtered$cell_line_id))
-
-  #add some sanity checks to make sure all the lines have been categorized out
-  assertthat::assert_that(dim(low_expression_lines)[1] + dim(high_expression_lines)[1] == total_lines)
-  assertthat::assert_that(dim(gene_required_lines)[1] + dim(gene_not_required_lines)[1] == total_lines)
-  
-  return(
-    tibble(split_gene = split_gene,
-           KO_test_gene = KO_test_gene,
-           low_exp_req_percent = sum(low_expression_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           high_exp_req_percent = sum(high_expression_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           low_exp_not_req_percent = sum(low_expression_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,
-           high_exp_not_req_percent = sum(high_expression_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,)
-  )
-}
+CERES_score_temp = expression_CRISPR_KO_PTEN_split %>%
+  group_by(hgnc_symbol,PTEN_level) %>%
+  summarise(mean_CERES = mean(CERES_score))
 ```
 
-```{r search PTEN-null diffs}
-PTEN_essential_KO_percents = tibble()
-for (split_gene in "PTEN") {
-  pb <- progress_bar$new(
-    format = "[:bar] :percent eta: :eta",
-    total = length(unique(expression_CRISPR_KO$hgnc_symbol)), clear = FALSE)
-  for (KO_test_gene in unique(expression_CRISPR_KO$hgnc_symbol)) {
-    if (split_gene == KO_test_gene) {
-      next;
-    }
-    PTEN_essential_KO_percents = 
-      rbind(PTEN_essential_KO_percents,
-            test_split_gene_KO_changes(expression_CRISPR_KO, split_gene = split_gene, KO_test_gene = KO_test_gene))
-    pb$tick()
-  }
-}
-```
-
-```{r summarize full PTEN-null list}
-gene_low_expression_rate = expression_CRISPR_KO %>% 
+```{r}
+tic()
+CERES_score_p_value = expression_CRISPR_KO_PTEN_split %>%
   group_by(hgnc_symbol) %>% 
-  summarise(low_percent = mean(expression_level == "low")*100)
-
-PTEN_essential_KO_percents_temp = PTEN_essential_KO_percents %>% 
-  left_join(gene_low_expression_rate, by=c('split_gene'='hgnc_symbol')) %>%
-  left_join(gene_percent_required, by=c('KO_test_gene'='hgnc_symbol')) %>%
-  mutate(low_exp_req_expect = percent_required*low_percent/100,
-         high_exp_req_expect = percent_required*(100-low_percent)/100,
-         low_exp_not_req_expect = (100-percent_required)*low_percent/100,
-         high_exp_not_req_expect = (100-percent_required)*(100-low_percent)/100) %>%
-  mutate(low_exp_req_diff = low_exp_req_percent - low_exp_req_expect,
-         high_exp_req_diff = high_exp_req_percent - high_exp_req_expect,
-         low_exp_not_req_diff = low_exp_not_req_percent - low_exp_not_req_expect,
-         high_exp_not_req_diff = high_exp_not_req_percent - high_exp_not_req_expect)
+  nest() %>%
+  mutate(CERES_p_val = map_dbl(data,calc_p_val)) %>%
+  mutate(CERES_p_val_adjust = p.adjust(CERES_p_val,method="fdr")) %>%
+  select(-data)
+toc()
 ```
 
+```{r}
 
-```{r search del essential list}
-del_essential_KO_percents = tibble()
-for (split_gene in low_expression_percent_trip_neg$hgnc_symbol) {
-  for (KO_test_gene in gene_percent_required_del_essential$hgnc_symbol) {
-    if (split_gene == KO_test_gene) {
-      next;
-    }
-    del_essential_KO_percents = rbind(del_essential_KO_percents,
-                               test_split_gene_KO_changes(expression_CRISPR_KO_trip_neg, split_gene = split_gene, KO_test_gene = KO_test_gene))
-  }
-}
-
-del_essential_KO_percents = del_essential_KO_percents %>% 
-  left_join(gene_percent_required_del_essential, by=c('KO_test_gene'='hgnc_symbol')) %>%
-  left_join(low_expression_percent_trip_neg, by=c('split_gene'='hgnc_symbol')) %>%
-  mutate(low_exp_req_expect = percent_required*low_percent/100,
-         high_exp_req_expect = percent_required*(100-low_percent)/100,
-         low_exp_not_req_expect = (100-percent_required)*low_percent/100,
-         high_exp_not_req_expect = (100-percent_required)*(100-low_percent)/100) %>%
-  mutate(low_exp_req_diff = low_exp_req_percent - low_exp_req_expect,
-         high_exp_req_diff = high_exp_req_percent - high_exp_req_expect,
-         low_exp_not_req_diff = low_exp_not_req_percent - low_exp_not_req_expect,
-         high_exp_not_req_diff = high_exp_not_req_percent - high_exp_not_req_expect)
+CERES_score_diff_means = left_join(
+  CERES_score_temp %>% filter(PTEN_level == "low") %>% select(-PTEN_level) %>% rename(mean_CERES_low = mean_CERES),
+  CERES_score_temp %>% filter(PTEN_level == "high") %>% select(-PTEN_level) %>% rename(mean_CERES_high = mean_CERES)
+) %>% mutate(CERES_score_diff = mean_CERES_low - mean_CERES_high) %>%
+  left_join(CERES_score_p_value) %>%
+  arrange(CERES_score_diff)
 ```
 
-## Deletion Essential - PTEN-RPPA Split
+```{r merge results from cBioPortal}
+all_PTEN_essential_pairs <- readRDS("~/Documents/Projects/PTEN_null_essential/results/all_PTEN_essential_pairs.rds")
 
-```{r gene split testing function}
-test_gene_missing_RPPA_KO_changes = function(full_expression_KO, split_gene = "PTEN", KO_test_gene = "NDNL2") {
-  expression_filtered = full_expression_KO %>%
-    filter(hgnc_symbol %in% c(split_gene,KO_test_gene))
-  
-  low_RPPA_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, RPPA_low)
-  high_RPPA_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, ! RPPA_low)
-  
-  gene_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "yes")
-
-  gene_not_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "no")
-
-  total_lines = length(unique(expression_filtered$cell_line_id))
-
-  #add some sanity checks to make sure all the lines have been categorized out
-  assertthat::assert_that(dim(low_RPPA_lines)[1] + dim(high_RPPA_lines)[1] == total_lines)
-  assertthat::assert_that(dim(gene_required_lines)[1] + dim(gene_not_required_lines)[1] == total_lines)
-  
-  return(
-    tibble(split_gene = split_gene,
-           KO_test_gene = KO_test_gene,
-           low_exp_req_percent = sum(low_RPPA_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           high_exp_req_percent = sum(high_RPPA_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           low_exp_not_req_percent = sum(low_RPPA_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,
-           high_exp_not_req_percent = sum(high_RPPA_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,)
-  )
-}
+merged_results = all_PTEN_essential_pairs %>% 
+  left_join(CERES_score_diff_means %>% 
+              select('hgnc_symbol','CERES_score_diff'), 
+            by=c('gene_2'='hgnc_symbol')) %>%
+  filter(CERES_score_diff < 0)
 ```
 
-```{r search PTEN RPPA Low diffs}
-PTEN_RPPA_lines = expression_CRISPR_KO %>%
-  filter(hgnc_symbol == "PTEN", !is.na(RPPA))
+## PTEN Essential Search - TNBC
 
-expression_CRISPR_KO_RPPA_present = expression_CRISPR_KO %>%
-  filter(cell_line_id %in% PTEN_RPPA_lines$cell_line_id)
+```{r}
+#split the cell lines into expressing/not expressing PTEN
+RPPA_PTEN = RPPA %>% 
+  filter(hgnc_symbol == "PTEN") %>%
+  mutate(PTEN_level = ifelse(RPPA <= -2, "low", "high"))
 
-PTEN_RPPA_KO_percents = tibble()
-for (split_gene in "PTEN") {
-  pb <- progress_bar$new(
-    format = "[:bar] :percent eta: :eta",
-    total = length(unique(expression_CRISPR_KO$hgnc_symbol)), clear = FALSE)
-  for (KO_test_gene in unique(expression_CRISPR_KO$hgnc_symbol)) {
-    if (split_gene == KO_test_gene) {
-      next;
-    }
-    PTEN_RPPA_KO_percents = 
-      rbind(PTEN_RPPA_KO_percents,
-            test_gene_missing_RPPA_KO_changes(expression_CRISPR_KO_RPPA_present, split_gene = split_gene, KO_test_gene = KO_test_gene))
-    pb$tick()
-  }
-}
-```
-
-```{r summarize full PTEN RPPA Low list}
-gene_low_RPPA = expression_CRISPR_KO_RPPA_present %>% 
-  group_by(hgnc_symbol) %>% 
-  summarise(low_RPPA = mean(RPPA_low)*100)
-
-PTEN_RPPA_KO_percents_temp = PTEN_RPPA_KO_percents %>% 
-  left_join(gene_low_RPPA, by=c('split_gene'='hgnc_symbol')) %>%
-  left_join(gene_percent_required, by=c('KO_test_gene'='hgnc_symbol')) %>%
-  mutate(low_exp_req_expect = percent_required*low_RPPA/100,
-         high_exp_req_expect = percent_required*(100-low_RPPA)/100,
-         low_exp_not_req_expect = (100-percent_required)*low_RPPA/100,
-         high_exp_not_req_expect = (100-percent_required)*(100-low_RPPA)/100) %>%
-  mutate(low_exp_req_diff = low_exp_req_percent - low_exp_req_expect,
-         high_exp_req_diff = high_exp_req_percent - high_exp_req_expect,
-         low_exp_not_req_diff = low_exp_not_req_percent - low_exp_not_req_expect,
-         high_exp_not_req_diff = high_exp_not_req_percent - high_exp_not_req_expect)
-```
-
-## Deletion Essential - PTEN-RPPA Split - Only Trip Neg
-
-```{r gene split testing function}
-test_gene_missing_RPPA_KO_changes = function(full_expression_KO, split_gene = "PTEN", KO_test_gene = "NDNL2") {
-  expression_filtered = full_expression_KO %>%
-    filter(hgnc_symbol %in% c(split_gene,KO_test_gene))
-  
-  low_RPPA_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, RPPA_low)
-  high_RPPA_lines = expression_filtered %>%
-    filter(hgnc_symbol == split_gene, ! RPPA_low)
-  
-  gene_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "yes")
-
-  gene_not_required_lines = expression_filtered %>%
-    filter(hgnc_symbol == KO_test_gene, required == "no")
-
-  total_lines = length(unique(expression_filtered$cell_line_id))
-
-  #add some sanity checks to make sure all the lines have been categorized out
-  assertthat::assert_that(dim(low_RPPA_lines)[1] + dim(high_RPPA_lines)[1] == total_lines)
-  assertthat::assert_that(dim(gene_required_lines)[1] + dim(gene_not_required_lines)[1] == total_lines)
-  
-  return(
-    tibble(split_gene = split_gene,
-           KO_test_gene = KO_test_gene,
-           low_exp_req_percent = sum(low_RPPA_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           high_exp_req_percent = sum(high_RPPA_lines$cell_line_id %in% gene_required_lines$cell_line_id)/total_lines*100,
-           low_exp_not_req_percent = sum(low_RPPA_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,
-           high_exp_not_req_percent = sum(high_RPPA_lines$cell_line_id %in% gene_not_required_lines$cell_line_id)/total_lines*100,)
-  )
-}
-```
-
-```{r search PTEN RPPA Low diffs}
-PTEN_RPPA_lines = expression_CRISPR_KO %>%
-  filter(hgnc_symbol == "PTEN", !is.na(RPPA))
-
-TNBC_lines = sample_info %>% 
+TNBC_samples = sample_info %>%
   filter(disease_sutype == "TNBC")
 
-expression_CRISPR_KO_RPPA_present_trip_neg = expression_CRISPR_KO %>%
-  filter(cell_line_id %in% PTEN_RPPA_lines$cell_line_id) %>%
-  filter(cell_line_id %in% TNBC_lines$DepMap_ID)
+expression_CRISPR_KO_PTEN_split = expression_CRISPR_KO %>% 
+  left_join(RPPA_PTEN %>% select('cell_line_id','PTEN_level')) %>%
+  filter(!is.na(PTEN_level)) %>%
+  filter(cell_line_id %in% TNBC_samples$DepMap_ID)
 
-PTEN_RPPA_KO_percents_trip_neg = tibble()
-for (split_gene in "PTEN") {
-  pb <- progress_bar$new(
-    format = "[:bar] :percent eta: :eta",
-    total = length(unique(expression_CRISPR_KO$hgnc_symbol)), clear = FALSE)
-  for (KO_test_gene in unique(expression_CRISPR_KO$hgnc_symbol)) {
-    if (split_gene == KO_test_gene) {
-      next;
-    }
-    PTEN_RPPA_KO_percents_trip_neg = 
-      rbind(PTEN_RPPA_KO_percents_trip_neg,
-            test_gene_missing_RPPA_KO_changes(expression_CRISPR_KO_RPPA_present_trip_neg, split_gene = split_gene, KO_test_gene = KO_test_gene))
-    pb$tick()
-  }
-}
+CERES_score_mean = expression_CRISPR_KO_PTEN_split %>%
+  group_by(hgnc_symbol,PTEN_level) %>%
+  summarise(mean_CERES = mean(CERES_score))
 ```
 
-```{r summarize full PTEN RPPA Low list}
-gene_low_RPPA = expression_CRISPR_KO_RPPA_present %>% 
-  group_by(hgnc_symbol) %>% 
-  summarise(low_RPPA = mean(RPPA_low)*100)
+```{r}
+calc_p_val <- function(data) {
+  return(tidy(t.test(CERES_score ~ PTEN_level, data = data))$p.value)
+}
 
-PTEN_RPPA_KO_percents_trip_neg_temp = PTEN_RPPA_KO_percents_trip_neg %>% 
-  left_join(gene_low_RPPA, by=c('split_gene'='hgnc_symbol')) %>%
-  left_join(gene_percent_required, by=c('KO_test_gene'='hgnc_symbol')) %>%
-  mutate(low_exp_req_expect = percent_required*low_RPPA/100,
-         high_exp_req_expect = percent_required*(100-low_RPPA)/100,
-         low_exp_not_req_expect = (100-percent_required)*low_RPPA/100,
-         high_exp_not_req_expect = (100-percent_required)*(100-low_RPPA)/100) %>%
-  mutate(low_exp_req_diff = low_exp_req_percent - low_exp_req_expect,
-         high_exp_req_diff = high_exp_req_percent - high_exp_req_expect,
-         low_exp_not_req_diff = low_exp_not_req_percent - low_exp_not_req_expect,
-         high_exp_not_req_diff = high_exp_not_req_percent - high_exp_not_req_expect)
+tic()
+CERES_score_p_value = expression_CRISPR_KO_PTEN_split %>%
+  group_by(hgnc_symbol) %>% 
+  nest() %>%
+  mutate(CERES_p_val = map_dbl(data,calc_p_val)) %>%
+  mutate(CERES_p_val_adjust = p.adjust(CERES_p_val,method="fdr")) %>%
+  select(-data)
+toc()
+```
+```{r}
+CERES_score_diff_means_TNBC = left_join(
+  CERES_score_mean %>% filter(PTEN_level == "low") %>% select(-PTEN_level) %>% rename(mean_CERES_low = mean_CERES),
+  CERES_score_mean %>% filter(PTEN_level == "high") %>% select(-PTEN_level) %>% rename(mean_CERES_high = mean_CERES)
+) %>% mutate(CERES_score_diff = mean_CERES_low - mean_CERES_high) %>%
+  left_join(CERES_score_p_value) %>%
+  arrange(CERES_score_diff)
+```
+
+```{r merge results from cBioPortal}
+all_PTEN_essential_pairs <- readRDS("~/Documents/Projects/PTEN_null_essential/results/all_PTEN_essential_pairs.rds")
+
+merged_results = all_PTEN_essential_pairs %>% 
+  left_join(CERES_score_diff_means_TNBC %>% 
+              select('hgnc_symbol',mean_CERES_low, mean_CERES_high, 'CERES_score_diff'), 
+            by=c('gene_2'='hgnc_symbol')) %>%
+  filter(CERES_score_diff < 0 | is.na(CERES_score_diff))
+```
+
+```{r}
+CERES_TNBC_shift = left_join(
+  CERES_score_diff_means %>% select(hgnc_symbol,CERES_score_diff) %>% rename(full_score_diff = CERES_score_diff),
+  CERES_score_diff_means_TNBC %>% select(hgnc_symbol,CERES_score_diff) %>% rename(TNBC_score_diff = CERES_score_diff)
+  ) %>%
+  mutate(score_shift = full_score_diff - TNBC_score_diff)
 ```
