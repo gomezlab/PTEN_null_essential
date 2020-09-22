@@ -1,0 +1,58 @@
+---
+title: "Filter PTEN-null Hit Names"
+author: "Matthew Berginski"
+date: "9/25/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+PTEN_null_TNBC_ranked = read_csv(here('results/PTEN_null_TNBC_ranked.csv'))
+plate_layout = read_excel(here('raw_data/384Well siRNA Library Data Details by Subset.xlsx'), sheet = 2)
+
+ensembl = biomaRt::useMart("ensembl", dataset = "hsapiens_gene_ensembl")
+refseq_genes = biomaRt::getBM(attributes=c("hgnc_symbol","entrezgene_id"),
+                              filters=c("hgnc_symbol"),
+                              values=list(PTEN_null_TNBC_ranked$gene_2), mart=ensembl)
+```
+
+```{r}
+#for some reason some of the genes aren't found in biomart, fixing that...
+refseq_genes = rbind(refseq_genes, 
+                     c('ZNF304',57343),
+                     c('GNG8',94235),
+                     c('LSM4',25804),
+                     c('OR4Q3',441669))
+```
+
+```{r}
+PTEN_null_TNBC_ranked = PTEN_null_TNBC_ranked %>% 
+  left_join(refseq_genes, by = c('gene_2' = 'hgnc_symbol'))
+```
+
+```{r}
+plate_top_320 = plate_layout %>% 
+  filter(`Gene ID` %in% PTEN_null_TNBC_ranked$entrezgene_id[1:325]) %>%
+  write_csv(here('results/PTEN_null_plate_top_320.csv'))
+missing_top_320 = PTEN_null_TNBC_ranked[1:325,] %>% filter(! entrezgene_id %in% plate_top_320$`Gene ID`)
+
+plate_top_640 = plate_layout %>% 
+  filter(`Gene ID` %in% PTEN_null_TNBC_ranked$entrezgene_id[1:657]) %>%
+  write_csv(here('results/PTEN_null_plate_top_640.csv'))
+missing_top_640 = PTEN_null_TNBC_ranked[1:657,] %>% filter(! entrezgene_id %in% plate_top_640$`Gene ID`)
+```
+
+```{r}
+#some duplicates in the plate data, so I've pulled out two more genes to add,
+#based on email from Brian Goetz on 9/15/2020
+plate_top_640_two_extra = plate_layout %>%
+  filter(`Gene ID` %in% PTEN_null_TNBC_ranked$entrezgene_id[658:660]) %>%
+  write_csv(here('results/PTEN_null_plate_two_extra.csv'))
+
+```
+```
