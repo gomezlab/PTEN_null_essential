@@ -424,7 +424,7 @@ possible_essential_pairs =
 toc();
 
 apparent_gene_essential_pairs = possible_essential_pairs %>%
-  filter(overlap_diff < 0, overlap_p_value <= 0.5) %>%
+  filter(overlap_diff < 0) %>%
   arrange(overlap_p_value) %>%
   write_rds(here('results/all_PTEN_essential_pairs.rds'))
 

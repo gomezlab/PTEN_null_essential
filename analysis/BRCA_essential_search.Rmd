@@ -216,6 +216,9 @@ possible_essential_pairs = gene_alteration_rates %>%
                                          find_overlap_count,
                                          alteration_data = full_brca_altered, 
                                          .progress=T)) %>%
+  
+  #make sure gene_1, gene_2 are characters to allow the next left_joins to work
+  mutate(gene_1 = as.character(gene_1), gene_2 = as.character(gene_2)) %>%
    
   #merge back in the alteration rates for both gene_1 and gene_2
   left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
@@ -268,7 +271,10 @@ possible_essential_pairs = gene_alteration_rates %>%
                                          find_overlap_count,
                                          alteration_data = full_brca_altered, 
                                          .progress=T)) %>%
-   
+  
+  #make sure gene_1, gene_2 are characters to allow the next left_joins to work
+  mutate(gene_1 = as.character(gene_1), gene_2 = as.character(gene_2)) %>%
+ 
   #merge back in the alteration rates for both gene_1 and gene_2
   left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
   left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
@@ -320,7 +326,10 @@ possible_essential_pairs = gene_alteration_rates %>%
                                          find_overlap_count,
                                          alteration_data = full_brca_altered, 
                                          .progress=T)) %>%
-   
+  
+  #make sure gene_1, gene_2 are characters to allow the next left_joins to work
+  mutate(gene_1 = as.character(gene_1), gene_2 = as.character(gene_2)) %>%
+  
   #merge back in the alteration rates for both gene_1 and gene_2
   left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
   left_join(gene_alteration_rates %>% rename(gene_2_mut_rate = del_mut_rate),by=c('gene_2' = 'Hugo_Symbol')) %>%
@@ -367,6 +376,9 @@ possible_essential_pairs =
                                          find_overlap_count,
                                          alteration_data = full_brca_altered,
                                          .progress=T)) %>%
+  
+  #make sure gene_1, gene_2 are characters to allow the next left_joins to work
+  mutate(gene_1 = as.character(gene_1), gene_2 = as.character(gene_2)) %>%
 
   #merge back in the alteration rates for both gene_1 and gene_2
   left_join(gene_alteration_rates %>% rename(gene_1_mut_rate = del_mut_rate),by=c('gene_1' = 'Hugo_Symbol')) %>%
