@@ -1,7 +1,6 @@
 ---
-title: "Analyze Screen Results"
+title: "Analyze Screen Results - SUM159"
 author: "Matthew Berginski"
-date: "11/19/2020"
 output: html_document
 ---
 
@@ -142,6 +141,7 @@ entrez_to_hgnc = read_csv(here('results/entrez_gene_id_to_HGNC.csv')) %>%
   mutate(entrezgene_id = as.character(entrezgene_id)) %>%
   add_row("entrezgene_id" = "440689","hgnc_symbol" = "H2BC18") %>%
   add_row("entrezgene_id" = "55093","hgnc_symbol" = "NTAQ1") %>%
+  add_row("entrezgene_id" = "54936", "hgnc_symbol" = "ADPRS") %>%
   unique() 
 
 screen_data_diffs = screen_data %>%
