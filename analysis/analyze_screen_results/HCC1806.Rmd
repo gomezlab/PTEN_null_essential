@@ -1,8 +1,8 @@
 ---
-title: "Analyze Screen Results"
+title: "Screen Results - HCC1806"
 author: "Matthew Berginski"
 date: "11/19/2020"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -11,9 +11,11 @@ library(here)
 library(readxl)
 library(janitor)
 library(broom)
+library(knitr)
+
 ```
 
-```{r}
+```{r, include = F, echo = F}
 plate_to_gene_map = read_excel(here('raw_data/screen_results/PTEN Cherry Pick List.xlsx'), sheet = 1) %>%
   clean_names() %>%
   filter(!is.na(x384_well_id_16)) %>%
@@ -50,7 +52,7 @@ plate_to_gene_map = plate_to_gene_map %>%
   add_row(plate_map_extra)
 ```
 
-```{r}
+```{r, include = F, echo = F}
 process_plate_data <- function(data_file) {
   plate_data = read_csv(data_file, 
                         skip = 10, 
@@ -118,7 +120,7 @@ screen_data = rbind(
     mutate(cell_line = "KO",plate_type = "PTEN_2",
            full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 3)
-)
+) %>% mutate(cell_line = fct_relevel(as.factor(cell_line), c("WT", "KO")))
 
 median_glo = screen_data %>% 
   group_by(cell_line,plate_type,replicate) %>% 
@@ -168,213 +170,44 @@ screen_data = screen_data %>%
   mutate(frac_titer_glo = (cell_titer_glo - siRNA_pos_mean)/(siRNA_neg_mean - siRNA_pos_mean))
 ```
 
-```{r}
-get_wilcox_p_val <- function(data) {
-  return(as.numeric(tidy(wilcox.test(cell_titer_glo ~ cell_line, data=data)$p.value)))
-}
+Results of the PTEN-KO vs WT siRNA screen. Each plate was normalized to the median of the three replicates. Then the cell titer glo values were scaled to the range between mean of the two siRNA controls on a per-plate basis. 
 
-get_t_test_p_val <- function(data) {
-  return(as.numeric(tidy(t.test(cell_titer_glo ~ cell_line, data=data)$p.value)))
-}
+# Variation in Per Plate siRNA Controls
 
-get_all_t_test <- function(data) {
-  return(tidy(t.test(cell_titer_glo ~ cell_line, data=data)))
-}
+```{r, echo=F}
+plate_rep_means = screen_data %>% 
+  filter(entrezgene_id == "Transfect_mix" |
+         entrezgene_id == "siRNA_neg" |
+         entrezgene_id == "siRNA_pos") %>%
+  group_by(cell_line,plate_type,replicate,entrezgene_id) %>% 
+  summarise(mean_treatment = mean(cell_titer_glo), .groups ='keep')
 
-screen_data_diffs = screen_data %>%
-  group_by(full_plate_ID) %>%
-  nest() %>%
-  mutate(t_test_results = map(data,get_all_t_test)) %>%
-  unnest(cols = c(t_test_results)) %>%
-  select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
-  rename("KD_mean_glo" = estimate1, "WT_mean_glo" = estimate2) %>%
-  ungroup() %>%
-  mutate(KO_change_ratio = KD_mean_glo/WT_mean_glo) %>%
-  mutate(KO_change_ratio_log2 = log2(KD_mean_glo/WT_mean_glo)) %>%
-  mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
-  left_join(plate_to_gene_map %>%
-              select(full_plate_ID, entrezgene_id)) %>%
-  left_join(entrez_to_hgnc) %>%
-  arrange(p.value_adj) %>%
-  write_csv(here('results/screening/HCC1806/screen_data_comparison_results_HCC1806.csv')) %>%
-  identity()
-```
-
-# Positive siRNA Control
-
-```{r}
-plate_order = screen_data_diffs %>%
-  filter(entrezgene_id == "siRNA_pos") %>%
-  arrange(KO_change_ratio) %>%
-  pull(full_plate_ID)
-
-treatment_means = screen_data %>%
-  filter(entrezgene_id == "siRNA_pos") %>%
-  group_by(full_plate_ID, cell_line) %>%
-  summarise(mean_cell_titer = mean(cell_titer_glo))
-
-ggplot(screen_data %>% 
-         filter(entrezgene_id == "siRNA_pos") %>%
-         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
-       aes(x=full_plate_ID,y=cell_titer_glo,color=cell_line)) +
-  geom_jitter() +
-  geom_crossbar(data = treatment_means,
-                aes(x=full_plate_ID,
-                    ymin=mean_cell_titer,
-                    ymax=mean_cell_titer,
-                    color=cell_line,
-                    y=mean_cell_titer)) +
+ggplot(plate_rep_means, 
+       aes(x = paste0(cell_line,"-",plate_type,"-",replicate), 
+           y = mean_treatment, color = entrezgene_id)) + 
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90)) +
   BerginskiRMisc::theme_berginski() +
-  # ylim(c(0,85000)) +
-  theme(axis.text.x = element_text(angle = 90))
+  labs(x="", y = "Treatment Type Average Glo", color="")
 ```
 
-# Negative siRNA Control
+# Per siRNA Target WT vs PTEN-KO Cell Growth/Viability
 
-```{r}
-plate_order = screen_data_diffs %>%
-  filter(entrezgene_id == "siRNA_neg") %>%
-  arrange(KO_change_ratio) %>%
-  pull(full_plate_ID)
-
-treatment_means = screen_data %>%
-  filter(entrezgene_id == "siRNA_neg") %>%
-  group_by(full_plate_ID, cell_line) %>%
-  summarise(mean_cell_titer = mean(cell_titer_glo))
-
-ggplot(treatment_means, 
-       aes(x=full_plate_ID,
-           ymin=mean_cell_titer,
-           ymax=mean_cell_titer,
-           color=cell_line,
-           y=mean_cell_titer)) +
-  geom_crossbar()
-
-ggplot(screen_data %>% 
-         filter(entrezgene_id == "siRNA_neg") %>%
-         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
-       aes(x=full_plate_ID,y=cell_titer_glo,color=cell_line)) +
-  geom_jitter() +
-  geom_crossbar(data = treatment_means,
-                aes(x=full_plate_ID,
-                    ymin=mean_cell_titer,
-                    ymax=mean_cell_titer,
-                    color=cell_line,
-                    y=mean_cell_titer)) +
-  BerginskiRMisc::theme_berginski() +
-  theme(axis.text.x = element_text(angle = 90))
-```
-
-```{r}
-ggplot(screen_data_diffs %>% filter(!is.na(hgnc_symbol)), aes(x=KO_change_ratio)) + 
-  geom_histogram(bins=20) + 
-  labs(x="KO Mean Glo / WT Mean Glo",y="Number of siRNA Gene Targets") +
-  geom_vline(aes(xintercept = mean(KO_change_ratio)), color = "red") +
-  BerginskiRMisc::theme_berginski()
-
-ggsave(here('figures/screening/HCC1806/KO_change_ratio_hist.png'), width=2.5,height=2.5)
-
-```
-
-```{r}
-screen_hits = screen_data_diffs %>%
-  filter(p.value_adj < 0.05, !is.na(hgnc_symbol)) %>%
-  arrange(KO_change_ratio) %>%
-  select(hgnc_symbol, everything()) %>%
-  mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
-  mutate(p.value = signif(p.value, digits=4),
-         p.value_adj = signif(p.value_adj, digits=4),
-         KD_mean_glo = round(KD_mean_glo),
-         WT_mean_glo = round(WT_mean_glo),
-         KO_change_ratio = signif(KO_change_ratio,digits=4)) %>%
-  mutate_if(is.numeric,~signif(.,digits=3)) %>%
-  write_csv(here('results/screening/HCC1806/PTEN-null_siRNA_screen_hits.csv')) %>%
-  identity()
-
-screen_hits_2fold = screen_hits %>%
-  filter(p.value_adj < 0.05, KO_change_ratio < 0.5 | KO_change_ratio > 2) %>%
-  arrange(KO_change_ratio)
-```
-
-```{r}
-screen_hits_full_data = screen_data %>%
-  filter(full_plate_ID %in% screen_hits$full_plate_ID) %>%
-  left_join(screen_hits %>% select(full_plate_ID,hgnc_symbol)) %>%
-  mutate(hgnc_symbol = fct_relevel(as.factor(hgnc_symbol), screen_hits$hgnc_symbol)) %>%
-  mutate(cell_line = fct_relevel(as.factor(cell_line), c("WT","KO"))) %>%
-  identity
-
-ggplot(screen_hits_full_data, aes(x=cell_line,y=cell_titer_glo, color=cell_line)) +
-  geom_jitter(size=0.5,width=0.25) +
-  labs(x='',y='Cell Titer Glo',color="Cell Line") +
-  BerginskiRMisc::theme_berginski() +
-  scale_color_brewer(type='qual', palette = "Dark2") +
-  facet_wrap(~hgnc_symbol) 
-
-ggsave(here('figures/screening/HCC1806/PTEN-null_screen_hits.png'),height=6,width=7)
-```
-
-```{r}
-screen_hits_full_data = screen_data %>%
-  filter(full_plate_ID %in% screen_hits_2fold$full_plate_ID) %>%
-  left_join(screen_hits_2fold %>% select(full_plate_ID,hgnc_symbol)) %>%
-  mutate(hgnc_symbol = fct_relevel(as.factor(hgnc_symbol), screen_hits_2fold$hgnc_symbol)) %>%
-  mutate(cell_line = fct_relevel(as.factor(cell_line), c("WT","KO"))) %>%
-  identity
-
-ggplot(screen_hits_full_data, aes(x=cell_line,y=cell_titer_glo, color=cell_line)) +
-  geom_jitter(size=0.5,width=0.25) +
-  labs(x='',y='Cell Titer Glo',color="Cell Line") +
-  BerginskiRMisc::theme_berginski() +
-  scale_color_brewer(type='qual', palette = "Dark2") +
-  facet_wrap(~hgnc_symbol) 
-
-ggsave(here('figures/screening/HCC1806/PTEN-null_screen_hits_2fold.png'),height=3,width=4.5)
-```
-
-```{r}
-combined_sets = read_csv(here('results/screening/screen_data_comparison_results.csv')) %>%
-  filter(!is.na(hgnc_symbol)) %>%
-  select(hgnc_symbol,KO_change_ratio) %>%
-  rename(SUM159_change_ratio = KO_change_ratio) %>%
-  left_join(screen_data_diffs %>% 
-              select(hgnc_symbol,KO_change_ratio) %>% 
-              rename(HCC1806_change_ratio = KO_change_ratio))
-
-ggplot(combined_sets, aes(x=log2(SUM159_change_ratio), y=log2(HCC1806_change_ratio))) + 
-  geom_point() + 
-  geom_smooth() +
-  labs(x="SUM159 Log2 KO/WT",y="HCC1806 Log2 KO/WT") +
-  BerginskiRMisc::theme_berginski()
-ggsave(here('results/screening/SUM159_HCC1806_ratio_comparison.png'),width=6,height=6)
-ggsave(here('figures/screening/SUM159_HCC1806_ratio_comparison.png'),width=6,height=6)
-```
-
-# Frac Live Cells Analysis
-
-```{r}
-get_wilcox_p_val <- function(data) {
-  return(as.numeric(tidy(wilcox.test(frac_titer_glo ~ cell_line, data=data)$p.value)))
-}
-
-get_t_test_p_val <- function(data) {
-  return(as.numeric(tidy(t.test(frac_titer_glo ~ cell_line, data=data)$p.value)))
-}
-
+```{r, include = F}
 get_all_t_test <- function(data) {
   return(tidy(t.test(frac_titer_glo ~ cell_line, data=data)))
 }
 
 screen_data_diffs = screen_data %>%
+  filter(!is.na(hgnc_symbol)) %>%
   group_by(full_plate_ID) %>%
   nest() %>%
   mutate(t_test_results = map(data,get_all_t_test)) %>%
   unnest(cols = c(t_test_results)) %>%
   select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
-  rename("KD_mean_frac" = estimate1, "WT_mean_frac" = estimate2) %>%
+  rename("KO_mean_frac" = estimate1, "WT_mean_frac" = estimate2) %>%
   ungroup() %>%
-  mutate(KO_change_diff = KD_mean_frac - WT_mean_frac) %>%
-  # mutate(KO_change_ratio_log2 = log2(KD_mean_glo/WT_mean_glo)) %>%
+  mutate(KO_change_diff = KO_mean_frac - WT_mean_frac) %>%
   mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
   left_join(plate_to_gene_map %>%
               select(full_plate_ID, entrezgene_id)) %>%
@@ -383,19 +216,69 @@ screen_data_diffs = screen_data %>%
   # write_csv(here('results/screening/HCC1806/screen_data_comparison_results_HCC1806.csv')) %>%
   identity()
 ```
-```{r}
-temp = screen_data %>% 
-  filter(cell_line == "WT", replicate == 1) %>% 
-  select(cell_titer_glo, full_plate_ID) %>%
-  rename(rep_1_glo = cell_titer_glo) %>%
-  left_join(screen_data %>% 
-              filter(cell_line == "WT", replicate == 2) %>% 
-              select(cell_titer_glo, full_plate_ID) %>%
-              rename(rep_2_glo = cell_titer_glo)) %>%
-  mutate(glo_diff = rep_1_glo - rep_2_glo)
+
+```{r, fig.width = 8,fig.height = 8, echo = F}
+ggplot(screen_data_diffs, aes(x=KO_mean_frac,y=WT_mean_frac)) +
+  geom_segment(aes(x = 0,y = 0, xend = 2, yend = 2), color=rgb(1,0,0,alpha=0.5)) +
+  geom_point() +
+  BerginskiRMisc::theme_berginski() +
+  labs(x = "Average PTEN-KO siRNA Viability Fraction",
+       y = "Average WT siRNA Viability Fraction")
 ```
 
-```{r}
+# Per siRNA Target WT vs PTEN-KO Cell Growth/Viability with 95% Conf Interval
+
+I've added 95% confidence intervals (represented by lines in the x/y directions) for each siRNA treatment.
+
+This figure is way to noisy to make out anything about the individual siRNA treatments, but I think it's helpful to get a grasp on how much variability there is in the plate replicates.
+
+```{r, include = F}
+get_all_t_test_single <- function(data) {
+  return(tidy(t.test(data$frac_titer_glo)))
+}
+
+screen_data_errors = screen_data %>%
+  filter(!is.na(hgnc_symbol)) %>%
+  group_by(cell_line,hgnc_symbol) %>%
+  nest() %>%
+  mutate(t_test_results = map(data,get_all_t_test_single)) %>%
+  unnest(cols = c(t_test_results)) %>%
+  select(-parameter, -statistic, -method, -alternative, -data,-p.value) %>%
+  pivot_wider(names_from = cell_line, values_from = c(conf.low, conf.high, estimate)) %>%
+  identity()
+```
+
+
+```{r, fig.width = 8,fig.height = 8, echo = F}
+ggplot(screen_data_errors, aes(x=estimate_KO,y=estimate_WT)) +
+  geom_segment(aes(x = 0,y = 0, xend = 2, yend = 2), color=rgb(1,0,0,alpha=0.5)) +
+  geom_point() +
+  geom_linerange(aes(ymin=conf.low_WT,ymax=conf.high_WT)) +
+  geom_linerange(aes(xmin=conf.low_KO,xmax=conf.high_KO)) +
+  BerginskiRMisc::theme_berginski() +
+  labs(x = "Average PTEN-KO siRNA Viability Fraction",
+       y = "Average WT siRNA Viability Fraction")
+```
+
+# Histogram of the Difference in Viability/Growth for each siRNA treatment
+
+Same data as above except represented as the difference between KO/WT. The average difference is `r signif(mean(screen_data_diffs$KO_change_diff),3)`.
+
+```{r, echo = F}
+ggplot(screen_data_diffs, aes(x=KO_change_diff)) +
+  geom_histogram(bins = 30) + 
+  BerginskiRMisc::theme_berginski() +
+  # geom_vline(aes(xintercept = 0), color='red') +
+  geom_vline(aes(xintercept = mean(KO_change_diff)), color=rgb(27/256,158/256,119/256)) +
+  geom_text(aes(x=mean(KO_change_diff),y=50, label="Average Viability Diff"), color=rgb(27/256,158/256,119/256),angle = 90,vjust=-0.5) +
+  geom_text(aes(x=-0.5,y=50, label="WT More Viable"), color='red',angle = 90) +
+  geom_text(aes(x=0.5,y=50, label="PTEN-KO More Viable"), color='red', angle = -90) +
+  labs(x = "PTEN-KO - WT Cell Viability Difference",y="Number of siRNA Targets")
+```
+
+# Searching for Significant Differences in Cell Viability
+
+```{r, echo = F}
 screen_hits = screen_data_diffs %>%
   filter(p.value_adj < 0.05, !is.na(hgnc_symbol)) %>%
   arrange(KO_change_diff) %>%
@@ -403,79 +286,96 @@ screen_hits = screen_data_diffs %>%
   mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
   mutate(p.value = signif(p.value, digits=4),
          p.value_adj = signif(p.value_adj, digits=4),
-         KD_mean_frac = round(KD_mean_frac),
-         WT_mean_frac = round(WT_mean_frac),
+         KO_mean_frac = signif(KO_mean_frac,3),
+         WT_mean_frac = signif(WT_mean_frac,3),
          KO_change_diff = signif(KO_change_diff,digits=4)) %>%
   # mutate_if(is.numeric,~signif(.,digits=3)) %>%
   # write_csv(here('results/screening/PTEN-null_siRNA_screen_hits.csv'))
   identity()
-
-# screen_hits_2fold = screen_data_diffs %>%
-#   filter(p.value_adj < 0.05, KO_change_diff < 0.5 | KO_change_diff > 2) %>%
-#   arrange(KO_change_ratio)
 ```
 
-## Positive siRNA Control
+I took the cell viability results and ran a t-test on all the WT vs KO values. I adjusted the resulting p-values for multiple testing and filtered to the 0.05 level. There were `r dim(screen_hits)[1]` total hits. The following table lists the hits, ordered by the genes with the strongest differential affect on the KO cells.
 
-```{r}
-plate_order = screen_data_diffs %>%
-  filter(entrezgene_id == "siRNA_pos") %>%
+Alright, so there are no hits in the HCC1806 data at the 0.05 level. You have to back out to the 0.15 level to get any hits:
+
+```{r, echo = F}
+screen_hits = screen_data_diffs %>%
+  filter(p.value_adj < 0.15, !is.na(hgnc_symbol)) %>%
   arrange(KO_change_diff) %>%
-  pull(full_plate_ID)
-
-treatment_means = screen_data %>%
-  filter(entrezgene_id == "siRNA_pos") %>%
-  group_by(full_plate_ID, cell_line) %>%
-  summarise(mean_cell_titer = mean(frac_titer_glo))
-
-ggplot(screen_data %>% 
-         filter(entrezgene_id == "siRNA_pos") %>%
-         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
-       aes(x=full_plate_ID,y=frac_titer_glo,color=cell_line)) +
-  geom_jitter() +
-  geom_crossbar(data = treatment_means,
-                aes(x=full_plate_ID,
-                    ymin=mean_cell_titer,
-                    ymax=mean_cell_titer,
-                    color=cell_line,
-                    y=mean_cell_titer)) +
-  BerginskiRMisc::theme_berginski() +
-  # ylim(c(0,85000)) +
-  theme(axis.text.x = element_text(angle = 90))
+  select(hgnc_symbol, everything()) %>%
+  mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
+  mutate(p.value = signif(p.value, digits=4),
+         p.value_adj = signif(p.value_adj, digits=4),
+         KO_mean_frac = signif(KO_mean_frac,3),
+         WT_mean_frac = signif(WT_mean_frac,3),
+         KO_change_diff = signif(KO_change_diff,digits=4)) %>%
+  # mutate_if(is.numeric,~signif(.,digits=3)) %>%
+  # write_csv(here('results/screening/PTEN-null_siRNA_screen_hits.csv'))
+  identity()
 ```
 
-## Negative siRNA Control
+```{r, echo=F}
+screen_hits %>%
+  select(-full_plate_ID, -p.value, -entrezgene_id) %>%
+  kable()
+```
 
-```{r}
-plate_order = screen_data_diffs %>%
-  filter(entrezgene_id == "siRNA_neg") %>%
-  arrange(KO_change_diff) %>%
-  pull(full_plate_ID)
 
-treatment_means = screen_data %>%
-  filter(entrezgene_id == "siRNA_neg") %>%
-  group_by(full_plate_ID, cell_line) %>%
-  summarise(mean_cell_titer = mean(frac_titer_glo))
+# A Few Visualizations of the Hit Table
 
-ggplot(treatment_means, 
-       aes(x=full_plate_ID,
-           ymin=mean_cell_titer,
-           ymax=mean_cell_titer,
-           color=cell_line,
-           y=mean_cell_titer)) +
-  geom_crossbar()
+Same style figure as before, but filtered to only the hits in the above table. 
 
-ggplot(screen_data %>% 
-         filter(entrezgene_id == "siRNA_neg") %>%
-         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
-       aes(x=full_plate_ID,y=frac_titer_glo,color=cell_line)) +
-  geom_jitter() +
-  geom_crossbar(data = treatment_means,
-                aes(x=full_plate_ID,
-                    ymin=mean_cell_titer,
-                    ymax=mean_cell_titer,
-                    color=cell_line,
-                    y=mean_cell_titer)) +
+```{r, fig.width = 8,fig.height = 8, echo = F}
+library(ggrepel)
+ggplot(screen_data_errors %>% filter(hgnc_symbol %in% screen_hits$hgnc_symbol),
+       aes(x = estimate_KO,y = estimate_WT)) +
+  geom_segment(aes(x = 0,y = 0, xend = 2, yend = 2), color=rgb(1,0,0,alpha=0.5)) +
+  geom_point() +
+  geom_linerange(aes(ymin=conf.low_WT,ymax=conf.high_WT), alpha=0.25) +
+  geom_linerange(aes(xmin=conf.low_KO,xmax=conf.high_KO), alpha=0.25) +
   BerginskiRMisc::theme_berginski() +
-  theme(axis.text.x = element_text(angle = 90))
+  labs(x = "Average PTEN-KO siRNA Viability Fraction",
+       y = "Average WT siRNA Viability Fraction",
+       color = "KO - WT\nViability")
+```
+
+Same figure as above, but with labels for each gene and colored the points/labels by the strength of the KO vs WT effect.
+
+```{r, fig.width = 8,fig.height = 8, echo = F}
+library(ggrepel)
+ggplot(screen_data_errors %>% filter(hgnc_symbol %in% screen_hits$hgnc_symbol),
+       aes(x = estimate_KO,y = estimate_WT, color = estimate_KO - estimate_WT)) +
+  geom_segment(aes(x = 0,y = 0, xend = 2, yend = 2), color=rgb(1,0,0,alpha=0.5)) +
+  geom_point() +
+  geom_linerange(aes(ymin=conf.low_WT,ymax=conf.high_WT), alpha=0.25) +
+  geom_linerange(aes(xmin=conf.low_KO,xmax=conf.high_KO), alpha=0.25) +
+  geom_label_repel(aes(label=hgnc_symbol), force=0.5) +
+  BerginskiRMisc::theme_berginski() +
+  scale_color_viridis_c() +
+  labs(x = "Average PTEN-KO siRNA Viability Fraction",
+       y = "Average WT siRNA Viability Fraction",
+       color = "KO - WT\nViability")
+```
+
+A small multiples visualization of each gene hit, in order by the differential effect on the KO cells.
+
+```{r, fig.height=10, fig.width=10, echo = F}
+screen_data_full_hits = screen_data %>%
+  filter(hgnc_symbol %in% screen_hits$hgnc_symbol) %>%
+  mutate(hgnc_symbol = fct_relevel(as.factor(hgnc_symbol), screen_hits$hgnc_symbol))
+
+screen_data_summary = screen_data_full_hits %>%
+  group_by(cell_line,hgnc_symbol) %>%
+  summarise(mean_frac = mean(frac_titer_glo), .groups = "keep") %>%
+  mutate(hgnc_symbol = fct_relevel(as.factor(hgnc_symbol), screen_hits$hgnc_symbol))
+
+# ggplot(screen_data_full_hits) + geom_point(mapping = aes(x = cell_line,y = frac_titer_glo)
+
+ggplot(screen_data_full_hits) +
+  geom_jitter(aes(x = cell_line, y = frac_titer_glo)) +
+  geom_crossbar(data = screen_data_summary, mapping = aes(x = cell_line, y = mean_frac, ymin = mean_frac, ymax = mean_frac)) +
+  BerginskiRMisc::theme_berginski() +
+  labs(x="",y="Cell Viability") +
+  ylim(c(0,NA)) +
+  facet_wrap(~hgnc_symbol)
 ```
