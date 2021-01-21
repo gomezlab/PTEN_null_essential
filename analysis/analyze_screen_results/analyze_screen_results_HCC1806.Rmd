@@ -61,68 +61,111 @@ process_plate_data <- function(data_file) {
   colnames(plate_data) = c("plate_letter",1:24)
   plate_data = plate_data %>%
     pivot_longer(-plate_letter,names_to="plate_number",values_to = "cell_titer_glo") %>%
+    mutate(cell_titer_glo = as.numeric(cell_titer_glo)) %>%
     mutate(plate_combined = paste0(plate_letter, sprintf('%03d',as.numeric(plate_number))))  
   return(plate_data)
 }
 
 screen_data = rbind(
   process_plate_data(here('raw_data/screen_results/HCC1806/01 - 20201221 - HCC1806 WT Plate 1_1.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 1),
   process_plate_data(here('raw_data/screen_results/HCC1806/02 - 20201221 - HCC1806 WT Plate 1_2.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 2),
   process_plate_data(here('raw_data/screen_results/HCC1806/03 - 20201221 - HCC1806 WT Plate 1_3.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 3),
-
+  
   process_plate_data(here('raw_data/screen_results/HCC1806/04 - 20201221 - HCC1806 WT Plate 2_1.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 1),
   process_plate_data(here('raw_data/screen_results/HCC1806/05 - 20201221 - HCC1806 WT Plate 2_2.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 2),
   process_plate_data(here('raw_data/screen_results/HCC1806/06 - 20201221 - HCC1806 WT Plate 2_3.csv')) %>%
-    mutate(cell_line = "WT",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "WT",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 3),
-
+  
   process_plate_data(here('raw_data/screen_results/HCC1806/07 - 20201221 - HCC1806 PTEN KO Plate 1_1.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 1),
   process_plate_data(here('raw_data/screen_results/HCC1806/08 - 20201221 - HCC1806 PTEN KO Plate 1_2.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 2),
   process_plate_data(here('raw_data/screen_results/HCC1806/09 - 20201221 - HCC1806 PTEN KO Plate 1_3.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_1-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_1",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 3),
-
+  
   process_plate_data(here('raw_data/screen_results/HCC1806/10 - 20201221 - HCC1806 PTEN KO Plate 2_1.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 1),
   process_plate_data(here('raw_data/screen_results/HCC1806/11 - 20201221 - HCC1806 PTEN KO Plate 2_2.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 2),
   process_plate_data(here('raw_data/screen_results/HCC1806/12 - 20201221 - HCC1806 PTEN KO Plate 2_3.csv')) %>%
-    mutate(cell_line = "KO",
-           full_plate_ID = paste0("PTEN_2-",plate_combined),
+    mutate(cell_line = "KO",plate_type = "PTEN_2",
+           full_plate_ID = paste0(plate_type,"-",plate_combined),
            replicate = 3)
 )
+
+median_glo = screen_data %>% 
+  group_by(cell_line,plate_type,replicate) %>% 
+  summarise(total_glo = sum(cell_titer_glo)) %>%
+  group_by(cell_line,plate_type) %>%
+  summarise(median_total_glo = mean(total_glo)) %>%
+  identity()
+
+glo_correction = screen_data %>% 
+  group_by(cell_line,plate_type,replicate) %>% 
+  summarise(total_glo = sum(cell_titer_glo)) %>%
+  left_join(median_glo) %>%
+  mutate(glo_correction = total_glo/median_total_glo)
+
+screen_data = screen_data %>%
+  left_join(glo_correction %>% select(cell_line,plate_type,replicate,glo_correction)) %>%
+  mutate(cell_titer_glo = cell_titer_glo/glo_correction)
+
+entrez_to_hgnc = read_csv(here('results/entrez_gene_id_to_HGNC.csv')) %>%
+  mutate(entrezgene_id = as.character(entrezgene_id)) %>%
+  add_row("entrezgene_id" = "440689","hgnc_symbol" = "H2BC18") %>%
+  add_row("entrezgene_id" = "55093","hgnc_symbol" = "NTAQ1") %>%
+  add_row("entrezgene_id" = "54936", "hgnc_symbol" = "ADPRS") %>%
+  unique()
 
 screen_data = screen_data %>%
   filter(full_plate_ID %in% unique(plate_to_gene_map$full_plate_ID)) %>%
   left_join(plate_to_gene_map %>%
-              select(full_plate_ID, entrezgene_id))
+              select(full_plate_ID, entrezgene_id)) %>%
+  left_join(entrez_to_hgnc)
+
+plate_control_means = screen_data %>%
+  filter(entrezgene_id == "Transfect_mix") %>%
+  group_by(cell_line,plate_type,replicate) %>%
+  summarise(mean_transfect_only = mean(cell_titer_glo)) %>%
+  left_join(screen_data %>%
+              filter(entrezgene_id == "siRNA_neg") %>%
+              group_by(cell_line,plate_type,replicate) %>%
+              summarise(siRNA_neg_mean = mean(cell_titer_glo))) %>%
+  left_join(screen_data %>%
+              filter(entrezgene_id == "siRNA_pos") %>%
+              group_by(cell_line,plate_type,replicate) %>%
+              summarise(siRNA_pos_mean = mean(cell_titer_glo)))
+
+screen_data = screen_data %>%
+  left_join(plate_control_means) %>%
+  mutate(frac_titer_glo = (cell_titer_glo - siRNA_pos_mean)/(siRNA_neg_mean - siRNA_pos_mean))
 ```
 
 ```{r}
@@ -138,13 +181,6 @@ get_all_t_test <- function(data) {
   return(tidy(t.test(cell_titer_glo ~ cell_line, data=data)))
 }
 
-entrez_to_hgnc = read_csv(here('results/entrez_gene_id_to_HGNC.csv')) %>%
-  mutate(entrezgene_id = as.character(entrezgene_id)) %>%
-  add_row("entrezgene_id" = "440689","hgnc_symbol" = "H2BC18") %>%
-  add_row("entrezgene_id" = "55093","hgnc_symbol" = "NTAQ1") %>%
-  add_row("entrezgene_id" = "54936", "hgnc_symbol" = "ADPRS") %>%
-  unique() 
-
 screen_data_diffs = screen_data %>%
   group_by(full_plate_ID) %>%
   nest() %>%
@@ -157,8 +193,7 @@ screen_data_diffs = screen_data %>%
   mutate(KO_change_ratio_log2 = log2(KD_mean_glo/WT_mean_glo)) %>%
   mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
   left_join(plate_to_gene_map %>%
-              select(full_plate_ID, entrezgene_id)
-  ) %>%
+              select(full_plate_ID, entrezgene_id)) %>%
   left_join(entrez_to_hgnc) %>%
   arrange(p.value_adj) %>%
   write_csv(here('results/screening/HCC1806/screen_data_comparison_results_HCC1806.csv')) %>%
@@ -190,6 +225,7 @@ ggplot(screen_data %>%
                     color=cell_line,
                     y=mean_cell_titer)) +
   BerginskiRMisc::theme_berginski() +
+  # ylim(c(0,85000)) +
   theme(axis.text.x = element_text(angle = 90))
 ```
 
@@ -230,10 +266,10 @@ ggplot(screen_data %>%
 ```
 
 ```{r}
-ggplot(screen_data_diffs %>% filter(!is.na(hgnc_symbol)), aes(x=log2(KO_change_ratio))) + 
+ggplot(screen_data_diffs %>% filter(!is.na(hgnc_symbol)), aes(x=KO_change_ratio)) + 
   geom_histogram(bins=20) + 
-  labs(x="KO Mean Glo / WT Mean Glo",y="Number of Genes") +
-  geom_vline(aes(xintercept = mean(log2(KO_change_ratio))), color = "red") +
+  labs(x="KO Mean Glo / WT Mean Glo",y="Number of siRNA Gene Targets") +
+  geom_vline(aes(xintercept = mean(KO_change_ratio)), color = "red") +
   BerginskiRMisc::theme_berginski()
 
 ggsave(here('figures/screening/HCC1806/KO_change_ratio_hist.png'), width=2.5,height=2.5)
@@ -255,7 +291,7 @@ screen_hits = screen_data_diffs %>%
   write_csv(here('results/screening/HCC1806/PTEN-null_siRNA_screen_hits.csv')) %>%
   identity()
 
-screen_hits_2fold = screen_data_diffs %>%
+screen_hits_2fold = screen_hits %>%
   filter(p.value_adj < 0.05, KO_change_ratio < 0.5 | KO_change_ratio > 2) %>%
   arrange(KO_change_ratio)
 ```
@@ -311,4 +347,135 @@ ggplot(combined_sets, aes(x=log2(SUM159_change_ratio), y=log2(HCC1806_change_rat
   labs(x="SUM159 Log2 KO/WT",y="HCC1806 Log2 KO/WT") +
   BerginskiRMisc::theme_berginski()
 ggsave(here('results/screening/SUM159_HCC1806_ratio_comparison.png'),width=6,height=6)
+ggsave(here('figures/screening/SUM159_HCC1806_ratio_comparison.png'),width=6,height=6)
+```
+
+# Frac Live Cells Analysis
+
+```{r}
+get_wilcox_p_val <- function(data) {
+  return(as.numeric(tidy(wilcox.test(frac_titer_glo ~ cell_line, data=data)$p.value)))
+}
+
+get_t_test_p_val <- function(data) {
+  return(as.numeric(tidy(t.test(frac_titer_glo ~ cell_line, data=data)$p.value)))
+}
+
+get_all_t_test <- function(data) {
+  return(tidy(t.test(frac_titer_glo ~ cell_line, data=data)))
+}
+
+screen_data_diffs = screen_data %>%
+  group_by(full_plate_ID) %>%
+  nest() %>%
+  mutate(t_test_results = map(data,get_all_t_test)) %>%
+  unnest(cols = c(t_test_results)) %>%
+  select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
+  rename("KD_mean_frac" = estimate1, "WT_mean_frac" = estimate2) %>%
+  ungroup() %>%
+  mutate(KO_change_diff = KD_mean_frac - WT_mean_frac) %>%
+  # mutate(KO_change_ratio_log2 = log2(KD_mean_glo/WT_mean_glo)) %>%
+  mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
+  left_join(plate_to_gene_map %>%
+              select(full_plate_ID, entrezgene_id)) %>%
+  left_join(entrez_to_hgnc) %>%
+  arrange(p.value_adj) %>%
+  # write_csv(here('results/screening/HCC1806/screen_data_comparison_results_HCC1806.csv')) %>%
+  identity()
+```
+```{r}
+temp = screen_data %>% 
+  filter(cell_line == "WT", replicate == 1) %>% 
+  select(cell_titer_glo, full_plate_ID) %>%
+  rename(rep_1_glo = cell_titer_glo) %>%
+  left_join(screen_data %>% 
+              filter(cell_line == "WT", replicate == 2) %>% 
+              select(cell_titer_glo, full_plate_ID) %>%
+              rename(rep_2_glo = cell_titer_glo)) %>%
+  mutate(glo_diff = rep_1_glo - rep_2_glo)
+```
+
+```{r}
+screen_hits = screen_data_diffs %>%
+  filter(p.value_adj < 0.05, !is.na(hgnc_symbol)) %>%
+  arrange(KO_change_diff) %>%
+  select(hgnc_symbol, everything()) %>%
+  mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
+  mutate(p.value = signif(p.value, digits=4),
+         p.value_adj = signif(p.value_adj, digits=4),
+         KD_mean_frac = round(KD_mean_frac),
+         WT_mean_frac = round(WT_mean_frac),
+         KO_change_diff = signif(KO_change_diff,digits=4)) %>%
+  # mutate_if(is.numeric,~signif(.,digits=3)) %>%
+  # write_csv(here('results/screening/PTEN-null_siRNA_screen_hits.csv'))
+  identity()
+
+# screen_hits_2fold = screen_data_diffs %>%
+#   filter(p.value_adj < 0.05, KO_change_diff < 0.5 | KO_change_diff > 2) %>%
+#   arrange(KO_change_ratio)
+```
+
+## Positive siRNA Control
+
+```{r}
+plate_order = screen_data_diffs %>%
+  filter(entrezgene_id == "siRNA_pos") %>%
+  arrange(KO_change_diff) %>%
+  pull(full_plate_ID)
+
+treatment_means = screen_data %>%
+  filter(entrezgene_id == "siRNA_pos") %>%
+  group_by(full_plate_ID, cell_line) %>%
+  summarise(mean_cell_titer = mean(frac_titer_glo))
+
+ggplot(screen_data %>% 
+         filter(entrezgene_id == "siRNA_pos") %>%
+         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
+       aes(x=full_plate_ID,y=frac_titer_glo,color=cell_line)) +
+  geom_jitter() +
+  geom_crossbar(data = treatment_means,
+                aes(x=full_plate_ID,
+                    ymin=mean_cell_titer,
+                    ymax=mean_cell_titer,
+                    color=cell_line,
+                    y=mean_cell_titer)) +
+  BerginskiRMisc::theme_berginski() +
+  # ylim(c(0,85000)) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+## Negative siRNA Control
+
+```{r}
+plate_order = screen_data_diffs %>%
+  filter(entrezgene_id == "siRNA_neg") %>%
+  arrange(KO_change_diff) %>%
+  pull(full_plate_ID)
+
+treatment_means = screen_data %>%
+  filter(entrezgene_id == "siRNA_neg") %>%
+  group_by(full_plate_ID, cell_line) %>%
+  summarise(mean_cell_titer = mean(frac_titer_glo))
+
+ggplot(treatment_means, 
+       aes(x=full_plate_ID,
+           ymin=mean_cell_titer,
+           ymax=mean_cell_titer,
+           color=cell_line,
+           y=mean_cell_titer)) +
+  geom_crossbar()
+
+ggplot(screen_data %>% 
+         filter(entrezgene_id == "siRNA_neg") %>%
+         mutate(full_plate_ID = fct_relevel(full_plate_ID, plate_order)),
+       aes(x=full_plate_ID,y=frac_titer_glo,color=cell_line)) +
+  geom_jitter() +
+  geom_crossbar(data = treatment_means,
+                aes(x=full_plate_ID,
+                    ymin=mean_cell_titer,
+                    ymax=mean_cell_titer,
+                    color=cell_line,
+                    y=mean_cell_titer)) +
+  BerginskiRMisc::theme_berginski() +
+  theme(axis.text.x = element_text(angle = 90))
 ```
