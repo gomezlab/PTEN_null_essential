@@ -177,8 +177,8 @@ Results of the PTEN-KO vs WT siRNA screen. Each plate was normalized to the medi
 ```{r, echo=F}
 plate_rep_means = screen_data %>% 
   filter(entrezgene_id == "Transfect_mix" |
-         entrezgene_id == "siRNA_neg" |
-         entrezgene_id == "siRNA_pos") %>%
+           entrezgene_id == "siRNA_neg" |
+           entrezgene_id == "siRNA_pos") %>%
   group_by(cell_line,plate_type,replicate,entrezgene_id) %>% 
   summarise(mean_treatment = mean(cell_titer_glo), .groups ='keep')
 
@@ -372,10 +372,48 @@ screen_data_summary = screen_data_full_hits %>%
 # ggplot(screen_data_full_hits) + geom_point(mapping = aes(x = cell_line,y = frac_titer_glo)
 
 ggplot(screen_data_full_hits) +
+  geom_crossbar(data = screen_data_summary, mapping = aes(x = cell_line, y = mean_frac, ymin = mean_frac, ymax = mean_frac), alpha = 0.05) +
   geom_jitter(aes(x = cell_line, y = frac_titer_glo)) +
-  geom_crossbar(data = screen_data_summary, mapping = aes(x = cell_line, y = mean_frac, ymin = mean_frac, ymax = mean_frac)) +
   BerginskiRMisc::theme_berginski() +
   labs(x="",y="Cell Viability") +
   ylim(c(0,NA)) +
   facet_wrap(~hgnc_symbol)
+```
+
+# Comparison with MDAMB231
+
+I've pulled in the MDAMB231 viability summaries in to compare to the HCC1806. The correlation between the two cell lines is essentially zero, with a possible trend towards a negative correlation.
+
+```{r, fig.height=7,fig.width=7, echo=F}
+MDA_data = read_csv(here('results/screening/HCC1806/screen_data_comparison_results_HCC1806.csv'),
+                    col_types = cols(
+                      full_plate_ID = col_character(),
+                      WT_mean_frac = col_double(),
+                      KO_mean_frac = col_double(),
+                      p.value = col_double(),
+                      KO_change_diff = col_double(),
+                      p.value_adj = col_double(),
+                      entrezgene_id = col_double(),
+                      hgnc_symbol = col_character()
+                    ))
+
+combined_set = screen_data_diffs %>% 
+  select(hgnc_symbol, KO_change_diff) %>%
+  rename(HCC_diff = KO_change_diff) %>%
+  left_join(MDA_data %>% select(hgnc_symbol, KO_change_diff), by='hgnc_symbol') %>%
+  rename(MDA_diff = KO_change_diff)
+
+correlation_results = cor.test(combined_set$HCC_diff, combined_set$MDA_diff)
+title = paste0("Correlation: ", 
+               signif(correlation_results$estimate,3), " (", 
+               signif(correlation_results$conf.int[1],3),", ",
+               signif(correlation_results$conf.int[2],3), ")")
+
+
+ggplot(combined_set, aes(x= MDA_diff, y = HCC_diff)) + 
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  BerginskiRMisc::theme_berginski() +
+  ggtitle(title) + 
+  labs(x="MDAMB231 PTEN-KO - WT Viability", y="HCC1806 PTEN-KO - WT Viability")
 ```
