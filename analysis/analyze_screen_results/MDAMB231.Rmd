@@ -205,7 +205,7 @@ screen_data_diffs = screen_data %>%
   mutate(t_test_results = map(data,get_all_t_test)) %>%
   unnest(cols = c(t_test_results)) %>%
   select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
-  rename("KO_mean_frac" = estimate2, "WT_mean_frac" = estimate1) %>%
+  rename("WT_mean_frac" = estimate1, "KO_mean_frac" = estimate2) %>%
   ungroup() %>%
   mutate(KO_change_diff = KO_mean_frac - WT_mean_frac) %>%
   mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
@@ -298,7 +298,7 @@ I took the cell viability results and ran a t-test on all the WT vs KO values. I
 
 ```{r, echo=F}
 screen_hits %>% 
-  select(-full_plate_ID, -p.value, -entrezgene_id) %>% 
+  select(-full_plate_ID, -entrezgene_id) %>% 
   kable()
 ```
 

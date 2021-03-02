@@ -67,6 +67,12 @@ KO\_mean\_frac
 
 <th style="text-align:right;">
 
+p.value
+
+</th>
+
+<th style="text-align:right;">
+
 KO\_change\_diff
 
 </th>
@@ -100,6 +106,12 @@ VPS37A
 <td style="text-align:right;">
 
 1.300
+
+</td>
+
+<td style="text-align:right;">
+
+0.0001034
 
 </td>
 
@@ -139,6 +151,12 @@ FAM83H
 
 <td style="text-align:right;">
 
+0.0023510
+
+</td>
+
+<td style="text-align:right;">
+
 \-0.4894
 
 </td>
@@ -168,6 +186,12 @@ SGIP1
 <td style="text-align:right;">
 
 1.170
+
+</td>
+
+<td style="text-align:right;">
+
+0.0009240
 
 </td>
 
@@ -207,6 +231,12 @@ PRH1
 
 <td style="text-align:right;">
 
+0.0025170
+
+</td>
+
+<td style="text-align:right;">
+
 \-0.3625
 
 </td>
@@ -236,6 +266,12 @@ MITD1
 <td style="text-align:right;">
 
 1.270
+
+</td>
+
+<td style="text-align:right;">
+
+0.0003915
 
 </td>
 
@@ -275,6 +311,12 @@ NUMBL
 
 <td style="text-align:right;">
 
+0.0022380
+
+</td>
+
+<td style="text-align:right;">
+
 \-0.2988
 
 </td>
@@ -304,6 +346,12 @@ CDC42
 <td style="text-align:right;">
 
 1.100
+
+</td>
+
+<td style="text-align:right;">
+
+0.0000568
 
 </td>
 
@@ -343,6 +391,12 @@ EFNA1
 
 <td style="text-align:right;">
 
+0.0031260
+
+</td>
+
+<td style="text-align:right;">
+
 \-0.2298
 
 </td>
@@ -372,6 +426,12 @@ IER2
 <td style="text-align:right;">
 
 0.948
+
+</td>
+
+<td style="text-align:right;">
+
+0.0002243
 
 </td>
 
@@ -411,6 +471,12 @@ U2AF2
 
 <td style="text-align:right;">
 
+0.0011320
+
+</td>
+
+<td style="text-align:right;">
+
 0.2057
 
 </td>
@@ -440,6 +506,12 @@ MAP3K6
 <td style="text-align:right;">
 
 0.984
+
+</td>
+
+<td style="text-align:right;">
+
+0.0010880
 
 </td>
 
@@ -479,6 +551,12 @@ BMPER
 
 <td style="text-align:right;">
 
+0.0016350
+
+</td>
+
+<td style="text-align:right;">
+
 0.2294
 
 </td>
@@ -508,6 +586,12 @@ BCAR1
 <td style="text-align:right;">
 
 0.579
+
+</td>
+
+<td style="text-align:right;">
+
+0.0001140
 
 </td>
 
@@ -547,6 +631,12 @@ OR4Q3
 
 <td style="text-align:right;">
 
+0.0034220
+
+</td>
+
+<td style="text-align:right;">
+
 0.2429
 
 </td>
@@ -576,6 +666,12 @@ CLSPN
 <td style="text-align:right;">
 
 0.894
+
+</td>
+
+<td style="text-align:right;">
+
+0.0031620
 
 </td>
 
@@ -615,6 +711,12 @@ RNF133
 
 <td style="text-align:right;">
 
+0.0033270
+
+</td>
+
+<td style="text-align:right;">
+
 0.2909
 
 </td>
@@ -644,6 +746,12 @@ MRPL42
 <td style="text-align:right;">
 
 0.609
+
+</td>
+
+<td style="text-align:right;">
+
+0.0018810
 
 </td>
 
@@ -683,6 +791,12 @@ SNRPC
 
 <td style="text-align:right;">
 
+0.0015950
+
+</td>
+
+<td style="text-align:right;">
+
 0.3152
 
 </td>
@@ -712,6 +826,12 @@ PTCH2
 <td style="text-align:right;">
 
 0.680
+
+</td>
+
+<td style="text-align:right;">
+
+0.0026780
 
 </td>
 
@@ -751,6 +871,12 @@ S1PR2
 
 <td style="text-align:right;">
 
+0.0028860
+
+</td>
+
+<td style="text-align:right;">
+
 0.3217
 
 </td>
@@ -780,6 +906,12 @@ NANS
 <td style="text-align:right;">
 
 0.637
+
+</td>
+
+<td style="text-align:right;">
+
+0.0012150
 
 </td>
 
@@ -819,6 +951,12 @@ SLC25A2
 
 <td style="text-align:right;">
 
+0.0012470
+
+</td>
+
+<td style="text-align:right;">
+
 0.3402
 
 </td>
@@ -848,6 +986,12 @@ FKBP4
 <td style="text-align:right;">
 
 1.120
+
+</td>
+
+<td style="text-align:right;">
+
+0.0013290
 
 </td>
 
@@ -887,6 +1031,12 @@ ATM
 
 <td style="text-align:right;">
 
+0.0004509
+
+</td>
+
+<td style="text-align:right;">
+
 0.3480
 
 </td>
@@ -916,6 +1066,12 @@ COPA
 <td style="text-align:right;">
 
 0.563
+
+</td>
+
+<td style="text-align:right;">
+
+0.0010150
 
 </td>
 
@@ -955,6 +1111,12 @@ CCDC158
 
 <td style="text-align:right;">
 
+0.0000923
+
+</td>
+
+<td style="text-align:right;">
+
 0.3589
 
 </td>
@@ -984,6 +1146,12 @@ SRSF6
 <td style="text-align:right;">
 
 0.986
+
+</td>
+
+<td style="text-align:right;">
+
+0.0003299
 
 </td>
 
@@ -1023,6 +1191,12 @@ VPS36
 
 <td style="text-align:right;">
 
+0.0008167
+
+</td>
+
+<td style="text-align:right;">
+
 0.3659
 
 </td>
@@ -1052,6 +1226,12 @@ PIGK
 <td style="text-align:right;">
 
 1.030
+
+</td>
+
+<td style="text-align:right;">
+
+0.0016270
 
 </td>
 
@@ -1091,6 +1271,12 @@ MANF
 
 <td style="text-align:right;">
 
+0.0007074
+
+</td>
+
+<td style="text-align:right;">
+
 0.3753
 
 </td>
@@ -1120,6 +1306,12 @@ PRC1
 <td style="text-align:right;">
 
 0.655
+
+</td>
+
+<td style="text-align:right;">
+
+0.0003315
 
 </td>
 
@@ -1159,6 +1351,12 @@ DDX41
 
 <td style="text-align:right;">
 
+0.0020410
+
+</td>
+
+<td style="text-align:right;">
+
 0.3761
 
 </td>
@@ -1188,6 +1386,12 @@ STK35
 <td style="text-align:right;">
 
 0.964
+
+</td>
+
+<td style="text-align:right;">
+
+0.0029480
 
 </td>
 
@@ -1227,6 +1431,12 @@ MYBL2
 
 <td style="text-align:right;">
 
+0.0003251
+
+</td>
+
+<td style="text-align:right;">
+
 0.3936
 
 </td>
@@ -1256,6 +1466,12 @@ CCAR2
 <td style="text-align:right;">
 
 0.938
+
+</td>
+
+<td style="text-align:right;">
+
+0.0005966
 
 </td>
 
@@ -1295,6 +1511,12 @@ IMPACT
 
 <td style="text-align:right;">
 
+0.0003761
+
+</td>
+
+<td style="text-align:right;">
+
 0.4219
 
 </td>
@@ -1324,6 +1546,12 @@ HK2
 <td style="text-align:right;">
 
 0.825
+
+</td>
+
+<td style="text-align:right;">
+
+0.0010420
 
 </td>
 
@@ -1363,6 +1591,12 @@ MOCS3
 
 <td style="text-align:right;">
 
+0.0011170
+
+</td>
+
+<td style="text-align:right;">
+
 0.4504
 
 </td>
@@ -1392,6 +1626,12 @@ LRRC39
 <td style="text-align:right;">
 
 0.700
+
+</td>
+
+<td style="text-align:right;">
+
+0.0024040
 
 </td>
 
@@ -1431,6 +1671,12 @@ SRP54
 
 <td style="text-align:right;">
 
+0.0029500
+
+</td>
+
+<td style="text-align:right;">
+
 0.4715
 
 </td>
@@ -1460,6 +1706,12 @@ OR4K17
 <td style="text-align:right;">
 
 0.954
+
+</td>
+
+<td style="text-align:right;">
+
+0.0019250
 
 </td>
 
@@ -1499,6 +1751,12 @@ EIF3K
 
 <td style="text-align:right;">
 
+0.0000267
+
+</td>
+
+<td style="text-align:right;">
+
 0.4792
 
 </td>
@@ -1533,6 +1791,12 @@ QDPR
 
 <td style="text-align:right;">
 
+0.0007132
+
+</td>
+
+<td style="text-align:right;">
+
 0.4867
 
 </td>
@@ -1562,6 +1826,12 @@ TXN2
 <td style="text-align:right;">
 
 1.040
+
+</td>
+
+<td style="text-align:right;">
+
+0.0033650
 
 </td>
 

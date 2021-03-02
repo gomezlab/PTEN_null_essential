@@ -205,7 +205,7 @@ screen_data_diffs = screen_data %>%
   mutate(t_test_results = map(data,get_all_t_test)) %>%
   unnest(cols = c(t_test_results)) %>%
   select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
-  rename("KO_mean_frac" = estimate1, "WT_mean_frac" = estimate2) %>%
+  rename("WT_mean_frac" = estimate1, "KO_mean_frac" = estimate2) %>%
   ungroup() %>%
   mutate(KO_change_diff = KO_mean_frac - WT_mean_frac) %>%
   mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
@@ -280,7 +280,7 @@ ggplot(screen_data_diffs, aes(x=KO_change_diff)) +
 
 ```{r, echo = F}
 screen_hits = screen_data_diffs %>%
-  filter(p.value_adj < 0.05, !is.na(hgnc_symbol)) %>%
+  filter(p.value < 0.05, !is.na(hgnc_symbol)) %>%
   arrange(KO_change_diff) %>%
   select(hgnc_symbol, everything()) %>%
   mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
@@ -294,29 +294,27 @@ screen_hits = screen_data_diffs %>%
   identity()
 ```
 
-I took the cell viability results and ran a t-test on all the WT vs KO values. I adjusted the resulting p-values for multiple testing and filtered to the 0.05 level. There were `r dim(screen_hits)[1]` total hits. The following table lists the hits, ordered by the genes with the strongest differential affect on the KO cells.
-
-Alright, so there are no hits in the HCC1806 data at the 0.05 level. You have to back out to the 0.15 level to get any hits:
+I took the cell viability results and ran a t-test on all the WT vs KO values. I filtered the result to p-values less than 0.05. There were `r dim(screen_hits)[1]` total hits. The following table lists the hits, ordered by the genes with the strongest differential affect on the KO cells.
 
 ```{r, echo = F}
-screen_hits = screen_data_diffs %>%
-  filter(p.value_adj < 0.15, !is.na(hgnc_symbol)) %>%
-  arrange(KO_change_diff) %>%
-  select(hgnc_symbol, everything()) %>%
-  mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
-  mutate(p.value = signif(p.value, digits=4),
-         p.value_adj = signif(p.value_adj, digits=4),
-         KO_mean_frac = signif(KO_mean_frac,3),
-         WT_mean_frac = signif(WT_mean_frac,3),
-         KO_change_diff = signif(KO_change_diff,digits=4)) %>%
-  # mutate_if(is.numeric,~signif(.,digits=3)) %>%
-  # write_csv(here('results/screening/PTEN-null_siRNA_screen_hits.csv'))
-  identity()
+# screen_hits = screen_data_diffs %>%
+#   filter(p.value_adj < 0.15, !is.na(hgnc_symbol)) %>%
+#   arrange(KO_change_diff) %>%
+#   select(hgnc_symbol, everything()) %>%
+#   mutate(entrezgene_id = as.factor(entrezgene_id)) %>%
+#   mutate(p.value = signif(p.value, digits=4),
+#          p.value_adj = signif(p.value_adj, digits=4),
+#          KO_mean_frac = signif(KO_mean_frac,3),
+#          WT_mean_frac = signif(WT_mean_frac,3),
+#          KO_change_diff = signif(KO_change_diff,digits=4)) %>%
+#   # mutate_if(is.numeric,~signif(.,digits=3)) %>%
+#   # write_csv(here('results/screening/PTEN-null_siRNA_screen_hits.csv'))
+#   identity()
 ```
 
 ```{r, echo=F}
 screen_hits %>%
-  select(-full_plate_ID, -p.value, -entrezgene_id) %>%
+  select(-full_plate_ID, -entrezgene_id) %>%
   kable()
 ```
 

@@ -1,0 +1,42 @@
+---
+title: "Analyze Fake Data"
+author: "Matthew Berginski"
+date: "1/5/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+```{r build fake data}
+fake_data = data.frame()
+for (i in 1:750) {
+  fake_data = rbind(
+    fake_data,
+    data.frame(full_plate_ID = i,cell_line = "WT", frac_titer_glo = 0.83 + rnorm(3,sd=0.15)),
+    data.frame(full_plate_ID = i,cell_line = "KO", frac_titer_glo = 0.75 + rnorm(3,sd=0.15))
+  )
+}
+
+get_all_t_test <- function(data) {
+  return(tidy(t.test(frac_titer_glo ~ cell_line, data=data)))
+}
+
+screen_data_diffs = fake_data %>%
+  group_by(full_plate_ID) %>%
+  nest() %>%
+  mutate(t_test_results = map(data,get_all_t_test)) %>%
+  unnest(cols = c(t_test_results)) %>%
+  select(-parameter, -conf.low, - conf.high, -statistic, -method, -alternative, -data, -estimate) %>%
+  rename("KD_mean_glo" = estimate1, "WT_mean_glo" = estimate2) %>%
+  ungroup() %>%
+  mutate(KO_change_diff = KD_mean_glo - WT_mean_glo) %>%
+  # mutate(KO_change_ratio_log2 = log2(KD_mean_glo/WT_mean_glo)) %>%
+  mutate(p.value_adj = p.adjust(p.value, method = "fdr")) %>%
+  # left_join(plate_to_gene_map %>%
+  #             select(full_plate_ID, entrezgene_id)) %>%
+  # left_join(entrez_to_hgnc) %>%
+  arrange(p.value_adj) %>%
+  identity()
+```
